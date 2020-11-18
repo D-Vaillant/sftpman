@@ -5,6 +5,7 @@ import re
 from .helper import json, shell_exec, mkdir_p, rmdir, kill_pid, which
 from .exception import SftpConfigException, SftpMountException
 
+CONFIG_SUPPORT = False
 
 class EnvironmentModel(object):
     """A configuration object that represents the environment
@@ -12,10 +13,35 @@ class EnvironmentModel(object):
     """
 
     def __init__(self):
-        self.mount_path_base = '/mnt/sshfs/'
         cfg_home = os.getenv('XDG_CONFIG_HOME', os.path.expanduser('~/.config'))
         self.config_path_base = "%s/" % os.path.join(cfg_home, 'sftpman')
         self.config_path_mounts = '%smounts/' % self.config_path_base
+
+        if CONFIG_SUPPORT:
+            config_path_file = os.path.join(self.config_path_base, "config.json")
+            self.mount_path_base = self.get_mount_path_base(config_path_file)
+            assert self.verify_mount_path_base()
+        else:
+            self.mount_path_base = "/mnt/sshfs"
+
+    def get_mount_path_base(self, path):
+        # Find the configuration file, read off the encoded data.
+        # Since the rest of this is in json, maybe it's only fair to do this too.
+        try:
+            with open(path) as f:
+                config = json.loads(f.read())
+                return config['mount_path_base']
+        except (ValueError, IOError, KeyError) as e:
+            msg = 'Failed finding or parsing config at %s.'
+            pass
+            # raise SftpConfigException(msg % path, e)
+        return "/mnt/sshfs"
+
+    def verify_mount_path_base(self):
+        # Does something to make sure that our mount_path_base
+        # works in the appropriate manner.
+        # TODO: Do something.
+        return True
 
     def get_system_config_path(self, system_id):
         return '%s%s.json' % (self.config_path_mounts, system_id)
